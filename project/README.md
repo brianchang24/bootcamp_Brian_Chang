@@ -26,6 +26,21 @@ Public companies publish quarterly earnings announcements that can move prices q
 - Smaller firms may have limited or messy text disclosures.
 - Leakage risk (using post-event info by mistake) must be controlled in labeling.
 
+## Data Storage
+
+**Folders**
+- `data/raw/` — timestamped raw snapshots (CSV) saved during ingestion.
+- `data/processed/` — typed/validated tables (Parquet) used by later stages.
+**Formats**
+- **CSV**: portable, human-readable.
+- **Parquet**: efficient columnar format with better types and faster IO. Requires `pyarrow` or `fastparquet`.
+**Configuration**
+- Paths are read from `.env` (`DATA_DIR_RAW`, `DATA_DIR_PROCESSED`) using `python-dotenv`.
+- Code never hardcodes absolute paths; it resolves relative to the project root.
+**Utilities**
+- `src/utils_storage.py` exposes `write_df` / `read_df` which route by file suffix and create missing directories.
+- CSV reload auto-parses a `date` column if present.
+
 ## Lifecycle Mapping (Goal → Stage → Deliverable)
 - Frame decision + users → Problem Framing & Scoping → This README + stakeholder memo.
 - Set up tools/env → Tooling Setup → Repo tree `/data/ /src/ /notebooks/ /docs/` and config.
