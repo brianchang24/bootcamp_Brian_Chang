@@ -80,14 +80,17 @@ def normalize_data(
 # Finance
 
 def sort_and_cast_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Ensure typical OHLCV schema and dtypes for downstream consistency.
-    Expects columns: 'date','open','high','low','close','volume' (extra cols kept).
-    """
     out = df.copy()
+    # Only parse if not already datetime-like
+    if "date" in out.columns and not pd.api.types.is_datetime64_any_dtype(out["date"]):
+        s = out["date"].astype(str).str.strip()
+        # try tz-aware first, then fallback
+        dt = pd.to_datetime(s, format="%Y-%m-%d %H:%M:%S%z", errors="coerce")
+        dt = dt.fillna(pd.to_datetime(s, errors="coerce", utc=False))
+        out["date"] = dt
     if "date" in out.columns:
-        out["date"] = pd.to_datetime(out["date"], errors="coerce")
-        out = out.sort_values("date")
+        out = out.sort_values("date", kind="mergesort").reset_index(drop=True)
+
     for c in ["open","high","low","close"]:
         if c in out.columns:
             out[c] = pd.to_numeric(out[c], errors="coerce")
@@ -95,38 +98,43 @@ def sort_and_cast_ohlcv(df: pd.DataFrame) -> pd.DataFrame:
         out["volume"] = pd.to_numeric(out["volume"], errors="coerce").astype("Int64")
     return out
 
+
 def ffill_ohlcv_by_date(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Forward-fill small gaps for OHLCV columns after sorting by date.
-    Use carefully: good for occasional missing values; not for large gaps.
+    Forward-fill small gaps for OHLCV columns.
+    Assumes 'date' already parsed & df already sorted by 'date'.
     """
-    out = sort_and_cast_ohlcv(df)
+    out = df.copy()
     cols = [c for c in ["open","high","low","close","volume"] if c in out.columns]
     out[cols] = out[cols].ffill()
     return out
 
-def add_returns(df: pd.DataFrame, price_col: str = "close", out_col: str = "ret_1d") -> pd.DataFrame:
+def add_returns(df: pd.DataFrame, price_col: str = "close",
+                ret_col: str = "ret_1d", ret_z_col: str = "ret_1d_z") -> pd.DataFrame:
     """
-    Compute simple daily return from the given price column.
-    Assumes the DataFrame is sorted by date.
-    """
-    out = sort_and_cast_ohlcv(df)
-    if price_col not in out.columns:
-        raise ValueError(f"Price column '{price_col}' not found.")
-    out[out_col] = out[price_col].pct_change()
-    return out
-
-def clip_extreme_zscores(df: pd.DataFrame, columns: Iterable[str], z: float = 5.0) -> pd.DataFrame:
-    """
-    Clip extreme z-scores to +/- z to reduce the impact of outliers.
+    Adds raw 1-day return (percent) and its z-score as new columns.
+    Does not clip/winsorize; that’s handled separately.
     """
     out = df.copy()
-    cols = _ensure_columns(out, columns)
-    for c in cols:
-        s = out[c].astype(float)
-        mu, sd = s.mean(), s.std(ddof=0)
-        if sd == 0 or np.isclose(sd, 0.0):
+    if price_col not in out.columns:
+        raise ValueError(f"Price column '{price_col}' not found.")
+    out[ret_col] = out[price_col].pct_change() * 100.0  # % return
+    # z-score only where ret is not NaN
+    mu = out[ret_col].mean(skipna=True)
+    sd = out[ret_col].std(ddof=0, skipna=True)
+    out[ret_z_col] = (out[ret_col] - mu) / sd if sd and sd != 0 else np.nan
+    return out
+
+def winsorize_zscores(df: pd.DataFrame, columns, z: float = 5.0) -> pd.DataFrame:
+    """
+    Winsorize (cap) z-score columns at ±z. Keeps rows; modifies only *_z columns.
+    Example: columns=["ret_1d"]  --> caps 'ret_1d_z' to [-z, z].
+    """
+    out = df.copy()
+    for col in columns:
+        z_col = f"{col}_z"
+        if z_col not in out.columns:
+            # silently skip if z column not present
             continue
-        zvals = (s - mu) / sd
-        out[c] = np.clip(zvals, -z, z)
+        out[z_col] = out[z_col].clip(lower=-z, upper=z)
     return out
