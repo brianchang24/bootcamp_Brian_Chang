@@ -31,15 +31,31 @@ Public companies publish quarterly earnings announcements that can move prices q
 **Folders**
 - `data/raw/` — timestamped raw snapshots (CSV) saved during ingestion.
 - `data/processed/` — typed/validated tables (Parquet) used by later stages.
+
 **Formats**
 - **CSV**: portable, human-readable.
 - **Parquet**: efficient columnar format with better types and faster IO. Requires `pyarrow` or `fastparquet`.
+
 **Configuration**
 - Paths are read from `.env` (`DATA_DIR_RAW`, `DATA_DIR_PROCESSED`) using `python-dotenv`.
 - Code never hardcodes absolute paths; it resolves relative to the project root.
+
 **Utilities**
 - `src/utils_storage.py` exposes `write_df` / `read_df` which route by file suffix and create missing directories.
 - CSV reload auto-parses a `date` column if present.
+
+## Stage 06 — Data Preprocessing
+
+- **Loading:** Read latest raw OHLCV snapshot from `data/raw/` (timestamped files from Stage 04).
+- **Cleaning (modular in `src/cleaning.py`):**
+  - `sort_and_cast_ohlcv()` → enforce schema/dtypes, sort by `date`
+  - `ffill_ohlcv_by_date()` → forward-fill small NaN gaps in OHLCV
+  - `add_returns()` → compute simple daily return `ret_1d` from `close`
+  - `fill_missing_median()`, `drop_missing()`, `normalize_data()` for non-time-series columns
+  - `clip_extreme_zscores()` for outlier damping
+- **Outputs:** Saved to `data/processed/prices_preprocessed_<timestamp>.csv`.
+- **Assumptions:** small gaps are forward-filled; modeling focuses on returns, not raw prices. See notebook for details.
+
 
 ## Lifecycle Mapping (Goal → Stage → Deliverable)
 - Frame decision + users → Problem Framing & Scoping → This README + stakeholder memo.
