@@ -138,3 +138,15 @@ def winsorize_zscores(df: pd.DataFrame, columns, z: float = 5.0) -> pd.DataFrame
             continue
         out[z_col] = out[z_col].clip(lower=-z, upper=z)
     return out
+
+def add_daily_range(df: pd.DataFrame) -> pd.DataFrame:
+    """Add daily_range = high - low."""
+    if {"high", "low"} <= set(df.columns):
+        df["daily_range"] = df["high"] - df["low"]
+    return df
+
+def add_gap(df: pd.DataFrame) -> pd.DataFrame:
+    """Add gap = (open - prev_close) / prev_close."""
+    if {"open", "close"} <= set(df.columns):
+        df["gap"] = (df["open"] - df["close"].shift(1)) / df["close"].shift(1)
+    return df
