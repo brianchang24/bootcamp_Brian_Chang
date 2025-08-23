@@ -56,6 +56,22 @@ Public companies publish quarterly earnings announcements that can move prices q
 - **Outputs:** Saved to `data/processed/prices_preprocessed_<timestamp>.csv`.
 - **Assumptions:** small gaps are forward-filled; modeling focuses on returns, not raw prices. See notebook for details.
 
+## Project Status (Stage 9 Update)
+
+**Original concept:** use news/announcement sentiment + prices to predict next-day returns.
+
+**Finding:** free news sentiment coverage was sparse and clustered at month-end, creating biased daily features.
+
+**Pivot:** proceed with **daily technical features** derived from OHLCV (reliable, reproducible). Sentiment kept as auxiliary; limitations documented in `docs/pivot_memo.md`.
+
+**Current scope:**
+- Features: gaps, daily range %, MA(5/20) ratio, 10-day return volatility, volume z-score(20), RSI(14), MACD & signal.
+- Target: next-day return (`ret_1d`), evaluated with simple baselines and correlation checks first.
+
+**Future work:**
+- Swap to a richer sentiment source or add earnings-call transcript sentiment (FinBERT).
+- Test T+1 setups and event windows (e.g., month-end sentiment → next-month returns).
+
 
 ## Lifecycle Mapping (Goal → Stage → Deliverable)
 - Frame decision + users → Problem Framing & Scoping → This README + stakeholder memo.
